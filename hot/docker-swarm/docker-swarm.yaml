@@ -122,8 +122,8 @@ resources:
             sudo docker swarm init --listen-addr 0.0.0.0:2377
             worker_token=`sudo docker swarm join-token worker -q`
             echo "+ worker token: ${worker_token}"
-            echo wc_notify --data-binary "{\"status\": \"SUCCESS\", \"reason\": \"master init done\", \"data\": \"$worker_token\"}"
-            wc_notify --data-binary "{\"status\": \"SUCCESS\", \"reason\": \"master init done\", \"data\": \"$worker_token\"}"
+            echo wc_notify --data-binary "{\"status\": \"SUCCESS\", \"reason\": \"master init done\", \"id\": \"token\", \"data\": \"$worker_token\"}"
+            wc_notify --data-binary "{\"status\": \"SUCCESS\", \"reason\": \"master init done\",\"data\": \"$worker_token\"}"
             echo "+ startup script done"
           params:
             wc_notify: { get_attr: ['master_wait_handle', 'curl_cli'] }
@@ -161,7 +161,8 @@ resources:
                   echo "+ startup script done"
                 params:
                   $master_ip: { get_attr: [docker_master, first_address]}
-                  $worker_token: { get_attr: [master_wait_condition, data]}
+                  $worker_token: { 'Fn::Select': ['token', {get_attr: [master_wait_condition, data]}]}
+
 
 outputs:
   ssh_private_key:
