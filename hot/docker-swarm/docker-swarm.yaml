@@ -123,7 +123,7 @@ resources:
             worker_token=`sudo docker swarm join-token worker -q`
             echo "+ worker token: ${worker_token}"
             echo wc_notify --data-binary "{\"status\": \"SUCCESS\", \"reason\": \"master init done\", \"id\": \"token\", \"data\": \"$worker_token\"}"
-            wc_notify --data-binary "{\"status\": \"SUCCESS\", \"reason\": \"master init done\",\"data\": \"$worker_token\"}"
+            wc_notify --data-binary "{\"status\": \"SUCCESS\", \"reason\": \"master init done\", \"id\": \"token\", \"data\": \"$worker_token\"}"
             echo "+ startup script done"
           params:
             wc_notify: { get_attr: ['master_wait_handle', 'curl_cli'] }
