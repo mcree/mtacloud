@@ -19,7 +19,8 @@ parameters:
     type: string
     label: Private Network Name
     description: Name of private network from which private IP addresses will be allocated
-    default: SECSCAN_net
+    constraints:
+      - custom_constraint: neutron.network
 
   instance_flavor:
     type: string
@@ -27,11 +28,7 @@ parameters:
     default: m1.small
     description: Flavor to use for Docker
     constraints:
-    - allowed_values:
-      - m1.small
-      - m1.medium
-      - m1.large
-      - m1.xlarge
+      - custom_constraint: nova.flavor
 
   instance_image:
     type: string
