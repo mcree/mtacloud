@@ -1,0 +1,1 @@
+Minimal docker image for a static web server utilizing dynamically created self signed SSL certificates.
