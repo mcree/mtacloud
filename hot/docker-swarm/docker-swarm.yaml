@@ -200,7 +200,7 @@ resources:
                   echo "+ SWARM NODE startup script starting"
 
                   bootstrap_url="https://$master_ip:$bootstrap_port/$bootstrap_token"
-                  echo "+ bootstrapping server certificates from $bootstrap_url"
+                  echo "+ fetching server certificates from $bootstrap_url"
                   sudo mkdir -p /root/certs
                   curl -fsSLk $bootstrap_url/server/ca.pem > /root/certs/ca.pem
                   curl -fsSLk $bootstrap_url/server/server.pem > /root/certs/server.pem
@@ -217,8 +217,7 @@ resources:
                   sudo systemctl daemon-reload
                   sudo service docker restart
                   
-                  echo "+ joining SWARM at $master_ip:2377 with token $worker_token"
-                  echo sudo docker swarm join --token $worker_token $master_ip:2377
+                  echo "+ joining SWARM at $master_ip:2377 with worker token $worker_token"
                   sudo docker swarm join --token $worker_token $master_ip:2377
 
                   echo "+ SWARM NODE startup script done"
