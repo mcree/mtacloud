@@ -9,6 +9,12 @@ parameters:
     description: Number of docker hosts (excluding the master)
     default: 2
 
+  bootstrap_port:
+    type: number
+    label: Bootstrap Port
+    description: Reserved TCP port for Docker Swarm bootstrapping
+    default: 4990
+
   public_ip:
     type: string
     label: Public IP
@@ -37,6 +43,12 @@ parameters:
     description: Image to be used for all servers in this stack
 
 resources:
+  #bootstrap token
+  bootstrap_token:
+    type: OS::Heat::RandomString
+    properties:
+      length: 64
+
   #SSH Key
   ssh_key:
     type: OS::Nova::KeyPair
@@ -65,12 +77,8 @@ resources:
       rules:
         - remote_ip_prefix: 0.0.0.0/0
           protocol: tcp
-          port_range_min: 22
-          port_range_max: 22
-        - remote_ip_prefix: 0.0.0.0/0
-          protocol: tcp
-          port_range_min: 2377
-          port_range_max: 2377
+          port_range_min: 1
+          port_range_max: 65535
         - remote_ip_prefix: 0.0.0.0/0
           protocol: icmp
         - remote_mode: remote_group_id
@@ -110,20 +118,60 @@ resources:
         str_replace:
           template: |
             #!/bin/bash
-            echo "+ startup script starting"
+            echo "+ SWARM MASTER startup script starting"
+
+            echo "+ setting up docker environment"
             curl -fsSL https://yum.dockerproject.org/gpg | sudo apt-key add -
             sudo add-apt-repository "deb https://apt.dockerproject.org/repo/ ubuntu-$(lsb_release -cs) main"
             sudo apt-get update
-            sudo apt-get -y install docker-engine
+            sudo apt-get -y install docker-engine gawk
             sudo service docker start
+            sudo docker run --rm -v /root/certs:/certs ehazlett/certm -d /certs bundle generate -o swarm --host proxy --host 127.0.0.1
+            sudo mkdir -p /etc/systemd/system/docker.service.d
+            sudo echo -e "[Service]\nExecStart=\nExecStart=/usr/bin/dockerd --tlsverify --tlscacert=/root/certs/ca.pem --tlscert=/root/certs/server.pem --tlskey=/root/certs/server-key.pem --host 0.0.0.0:2376 --host fd://\n" > /etc/systemd/system/docker.service.d/docker.conf
+            sudo systemctl daemon-reload
+            sudo service docker restart
+
+            echo "+ setting up SWARM on port 2377"
             sudo docker swarm init --listen-addr 0.0.0.0:2377
             worker_token=`sudo docker swarm join-token worker -q`
-            echo "+ worker token: ${worker_token}"
-            echo wc_notify --data-binary "{\"status\": \"SUCCESS\", \"reason\": \"master init done\", \"id\": \"token\", \"data\": \"$worker_token\"}"
-            wc_notify --data-binary "{\"status\": \"SUCCESS\", \"reason\": \"master init done\", \"id\": \"token\", \"data\": \"$worker_token\"}"
-            echo "+ startup script done"
+
+            echo "+ swarm worker token: ${worker_token}"
+            manager_token=`sudo docker swarm join-token manager -q`
+            echo "+ swarm manager token: ${manager_token}"
+
+            echo "+ preparing bootstrap dir"
+            strapdir=/bootstrap/$bootstrap_token
+            mkdir -p $strapdir
+            echo "move along, there is nothing to see here" > /bootstrap/index.html
+            mkdir -p $strapdir/ssh
+            echo -e "$ssh_key_private" > $strapdir/ssh/private
+            echo -e "$ssh_key_public" > $strapdir/ssh/public
+            mkdir -p $strapdir/ca
+            cp /root/certs/ca.pem /root/certs/ca-key.pem $strapdir/ca
+            mkdir -p $strapdir/server
+            cp /root/certs/ca.pem /root/certs/server-key.pem /root/certs/server.pem $strapdir/server
+            mkdir -p $strapdir/client
+            cp /root/certs/ca.pem /root/certs/cert.pem /root/certs/key.pem $strapdir/client
+            echo -e "$worker_token" > $strapdir/worker_token
+            echo -e "$manager_token" > $strapdir/manager_token            
+
+            echo "+ starting bootstrap server on port $bootstrap_port"
+            docker run -d -p $bootstrap_port:443 -v /bootstrap:/public mcreeiw/httpsd-static
+
+            echo "+ boootstrap dir contents:"
+            find /bootstrap/
+
+            echo "+ sending wc_notify on master init done"
+            wc_notify --data-binary "{\"status\": \"SUCCESS\", \"id\": \"worker_token\", \"reason\": \"master init done\", \"data\": \"$worker_token\"}"
+ 
+            echo "+ SWARM MASTER startup script done"
           params:
             wc_notify: { get_attr: ['master_wait_handle', 'curl_cli'] }
+            $bootstrap_token: {get_attr: [bootstrap_token, value]}
+            $ssh_key_private: { get_attr: [ssh_key, private_key] }
+            $ssh_key_public: { get_attr: [ssh_key, public_key] }
+            $bootstrap_port: { get_param: bootstrap_port }
         
   #Other Docker Swarm members
   docker_nodes:
@@ -147,21 +195,43 @@ resources:
               str_replace:
                 template: |
                   #!/bin/bash
-                  echo "+ startup script starting"
+                  echo "+ SWARM NODE startup script starting"
+
+                  bootstrap_url="https://$master_ip:$bootstrap_port/$bootstrap_token"
+                  echo "+ fetching server certificates from $bootstrap_url"
+                  sudo mkdir -p /root/certs
+                  curl -fsSLk $bootstrap_url/server/ca.pem > /root/certs/ca.pem
+                  curl -fsSLk $bootstrap_url/server/server.pem > /root/certs/server.pem
+                  curl -fsSLk $bootstrap_url/server/server-key.pem > /root/certs/server-key.pem
+
+                  echo "+ setting up docker environment"
                   curl -fsSL https://yum.dockerproject.org/gpg | sudo apt-key add -
                   sudo add-apt-repository "deb https://apt.dockerproject.org/repo/ ubuntu-$(lsb_release -cs) main"
                   sudo apt-get update
                   sudo apt-get -y install docker-engine
                   sudo service docker start
-                  echo sudo docker swarm join --token $worker_token $master_ip:2377
+                  sudo mkdir -p /etc/systemd/system/docker.service.d
+                  sudo echo -e "[Service]\nExecStart=\nExecStart=/usr/bin/dockerd --tlsverify --tlscacert=/root/certs/ca.pem --tlscert=/root/certs/server.pem --tlskey=/root/certs/server-key.pem --host 0.0.0.0:2376 --host fd://\n" > /etc/systemd/system/docker.service.d/docker.conf
+                  sudo systemctl daemon-reload
+                  sudo service docker restart
+                  
+                  echo "+ joining SWARM at $master_ip:2377 with worker token $worker_token"
                   sudo docker swarm join --token $worker_token $master_ip:2377
-                  echo "+ startup script done"
+
+                  echo "+ SWARM NODE startup script done"
                 params:
                   $master_ip: { get_attr: [docker_master, first_address]}
-                  $worker_token: { 'Fn::Select': ['token', {get_attr: [master_wait_condition, data]}]}
-
+                  $worker_token: { 'Fn::Select': [ 'worker_token', { get_attr: [master_wait_condition, data]} ] }
+                  $bootstrap_token: {get_attr: [bootstrap_token, value]}
+                  $bootstrap_port: { get_param: bootstrap_port }
 
 outputs:
-  ssh_private_key:
-    description: SSH Private Key
-    value: { get_attr: [ssh_key, private_key] }
+  bootstrap_url:
+    description: Bootstrap URL
+    value:
+      str_replace:
+        template: https://$public_ip:$bootstrap_port/$bootstrap_token
+        params:
+          $bootstrap_token: {get_attr: [bootstrap_token, value]}
+          $public_ip: { get_param: public_ip }
+          $bootstrap_port: { get_param: bootstrap_port }
