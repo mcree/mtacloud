@@ -99,7 +99,7 @@ Changing password for ubuntu.
 Enter new UNIX password: 
 Retype new UNIX password: 
 passwd: password updated successfully
-Connection to 193.224.59.251 closed.
+Connection to 1.2.3.4 closed.
 ~# docker run -ti -v /tmp/swarm:/entry mcreeiw/swarmentry ssh
 ubuntu@swarm-master:~$ 
 ~~~~
