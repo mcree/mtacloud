@@ -31,9 +31,9 @@ Several utility images are provided for enhancing your swarm experience:
 Showcase
 --------
 
-Bootstrapping: (commands run after HEAT cluster creation)
+Bootstrapping (commands run after HEAT cluster creation):
 ~~~~
-~# docker run -v /tmp/swarm:/entry mcreeiw/swarmentry bootstrap 193.224.59.251 4990 XXXTOKENXXX
+~# docker run -v /tmp/swarm:/entry mcreeiw/swarmentry bootstrap 1.2.3.4 4990 XXXTOKENXXX
 + bootstrapping from https://1.2.3.4:4990/XXXTOKENXXX
 # 1.2.3.4:22 SSH-2.0-OpenSSH_7.2p2 Ubuntu-4ubuntu1
 + done
