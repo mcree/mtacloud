@@ -25,8 +25,7 @@ parameters:
     type: string
     label: Private Network Name
     description: Name of private network from which private IP addresses will be allocated
-    constraints:
-      - custom_constraint: neutron.network
+    default: SECSCAN_net
 
   instance_flavor:
     type: string
@@ -34,7 +33,11 @@ parameters:
     default: m1.small
     description: Flavor to use for Docker
     constraints:
-      - custom_constraint: nova.flavor
+    - allowed_values:
+      - m1.small
+      - m1.medium
+      - m1.large
+      - m1.xlarge
 
   instance_image:
     type: string
@@ -135,7 +138,6 @@ resources:
             echo "+ setting up SWARM on port 2377"
             sudo docker swarm init --listen-addr 0.0.0.0:2377
             worker_token=`sudo docker swarm join-token worker -q`
-
             echo "+ swarm worker token: ${worker_token}"
             manager_token=`sudo docker swarm join-token manager -q`
             echo "+ swarm manager token: ${manager_token}"
@@ -231,6 +233,30 @@ outputs:
     value:
       str_replace:
         template: https://$public_ip:$bootstrap_port/$bootstrap_token
+        params:
+          $bootstrap_token: {get_attr: [bootstrap_token, value]}
+          $public_ip: { get_param: public_ip }
+          $bootstrap_port: { get_param: bootstrap_port }  
+
+  bootstrap_commands:
+    description: Bootstrap Commands
+    value:
+      str_replace:
+        template: |
+          
+          # run this first (replace /tmp/swarm with a persistent directory of your choice):
+          docker run -v /tmp/swarm:/entry mcreeiw/swarmentry bootstrap $public_ip $bootstrap_port $bootstrap_token
+          
+          # usage examples:
+          docker run -v /tmp/swarm:/entry mcreeiw/swarmentry usage
+          docker run -v /tmp/swarm:/entry mcreeiw/swarmentry docker service list
+          docker run -v /tmp/swarm:/entry -ti mcreeiw/swarmentry ssh
+          
+          # this works if you have recent version of docker installed:
+          eval `docker run -v /tmp/swarm:/entry mcreeiw/swarmentry eval /tmp/swarm`
+          swarm_docker service list
+          swarm_ssh
+          
         params:
           $bootstrap_token: {get_attr: [bootstrap_token, value]}
           $public_ip: { get_param: public_ip }
