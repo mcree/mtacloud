@@ -25,5 +25,89 @@ Bootstrapping
 -------------
 
 Several utility images are provided for enhancing your swarm experience:
-* https://hub.docker.com/r/mcreeiw/httpsd-static/ is used for providing keys and certificates needed for getting in touch with your VMs and Docker nodes
+* https://hub.docker.com/r/mcreeiw/httpsd-static/ is used for providing keys and certificates needed for getting in touch with your VMs and Docker nodes - you can safely kill this image after successful bootstrapping
 * https://hub.docker.com/r/mcreeiw/swarmentry/ is provided for convenient bootstrapping and cluster access
+
+Showcase
+--------
+
+Bootstrapping: (commands run after HEAT cluster creation)
+~~~~
+~# docker run -v /tmp/swarm:/entry mcreeiw/swarmentry bootstrap 193.224.59.251 4990 XXXTOKENXXX
++ bootstrapping from https://1.2.3.4:4990/XXXTOKENXXX
+# 1.2.3.4:22 SSH-2.0-OpenSSH_7.2p2 Ubuntu-4ubuntu1
++ done
+~~~~
+
+Usage:
+~~~~
+~# docker run -v /tmp/swarm:/entry mcreeiw/swarmentry usage
+usage: swarmentry command ARGS
+
+commands:
+
+    cmd         run a shell command
+                example: 
+                    cmd echo "hello"
+
+    bootstrap   set up initial environment in /entry
+                note:
+                    you should mount a persistent directory in /entry
+                    eg: docker run -v /tmp/myswarm:/entry mcreeiw/swarmentry bootstrap ...
+                parameters (in order): 
+                    IP          bootstrap IP address
+                    PORT        bootstrap TCP port
+                    TOKEN       bootstrap token
+                example:
+                    bootstrap   1.2.3.4 4990 0YwZAdpihVO2oTU77JJm9f4wAOtTB8fXVyMMm9aTvdahJYItzmQ8PzHLyNujBGnh
+
+    docker      run docker with ARGS command on swarm master
+                example:
+                    docker service ls
+
+    ssh         run ssh with ARGS on swarm master
+                notes:
+                    do not forget to use docker parameters -t and -i for interactive sessions
+                example:
+                    ssh hostname
+
+    eval        print configured aliases for ssh and docker
+                parameters (in order):
+                    CONFDIR     configuration file directory (populated by bootstrap command)
+                example:
+                    eval ~/myswarm
+                    
+    usage       print usage
+    
+~~~~
+
+List remote containers:
+~~~~
+~# docker run -v /tmp/swarm:/entry mcreeiw/swarmentry docker ps
+CONTAINER ID        IMAGE                   COMMAND                  CREATED             STATUS              PORTS                   NAMES
+da29b08a6a1f        mcreeiw/httpsd-static   "/work/entrypoint...."   4 minutes ago       Up 4 minutes        0.0.0.0:4990->443/tcp   jolly_pare
+~~~~
+
+SSH to master host (you have to change default password, which is 'ubuntu'):
+~~~~
+~# docker run -ti -v /tmp/swarm:/entry mcreeiw/swarmentry ssh
+You are required to change your password immediately (root enforced)
+WARNING: Your password has expired.
+You must change your password now and login again!
+Changing password for ubuntu.
+(current) UNIX password: 
+Enter new UNIX password: 
+Retype new UNIX password: 
+passwd: password updated successfully
+Connection to 193.224.59.251 closed.
+~# docker run -ti -v /tmp/swarm:/entry mcreeiw/swarmentry ssh
+ubuntu@swarm-master:~$ 
+~~~~
+
+Run http://portainer.io/ (swarm web gui) on the swarm cluster (published on port 9000):
+~~~~
+~# docker run -v /tmp/swarm:/entry mcreeiw/swarmentry docker service create --name portainer --publish 9000:9000 --constraint 'node.role == manager' --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock portainer/portainer -H unix:///var/run/docker.sock
+~# docker run -v /tmp/swarm:/entry mcreeiw/swarmentry docker service list
+ID            NAME       MODE        REPLICAS  IMAGE
+lo0b9bxwcwf2  portainer  replicated  1/1       portainer/portainer:latest
+~~~~
