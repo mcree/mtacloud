@@ -20,7 +20,7 @@ sudo apt-get -y install ansible python-shade python-os-client-config
 Fetch mtacloud ansible cluster helpers to your local machine (to /tmp/workdir):
 ~~~
 cd /tmp/workdir
-wget -q -O ansible.cfg https://raw.githubusercontent.com/mcree/mtacloud/master/hot/ansible-cluster/ansible.cfg
+wget -q -O cluster-ansiblerc https://raw.githubusercontent.com/mcree/mtacloud/master/hot/ansible-cluster/ansible.cfg
 wget -q -O openstack.py https://raw.githubusercontent.com/mcree/mtacloud/master/hot/ansible-cluster/openstack.py
 chmod +x openstack.py
 ~~~
@@ -31,12 +31,14 @@ Install basic python environment on your cluster (needed by ansilbe):
 ~~~
 cd /tmp/workdir
 source YOURPROJECT-openrc.sh
-CLUSTER_JUMPHOST=1.2.3.4 CLUSTER_KEY=cluster_key.private ansible -i openstack.py all -m raw -a 'sudo apt -y install python'
+source cluster-ansiblerc $(pwd)/cluster_key.private 1.2.3.4
+ansible all -m raw -a 'sudo apt -y install python'
 ~~~
 
 Try a simple ping:
 ~~~
 cd /tmp/workdir
 source YOURPROJECT-openrc.sh
-CLUSTER_JUMPHOST=1.2.3.4 CLUSTER_KEY=cluster_key.private ansible -i openstack.py all -m ping
+source cluster-ansiblerc $(pwd)/cluster_key.private 1.2.3.4
+ansible all -m ping
 ~~~
