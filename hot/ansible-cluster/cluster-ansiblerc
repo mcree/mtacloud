@@ -1,5 +1,5 @@
 #!/bin/bash
 CLUSTER_KEY=${CLUSTER_KEY:-$1}
 CLUSTER_JUMPHOST=${CLUSTER_JUMPHOST:-$2}
-export ANSIBLE_SSH_ARGS='-o IdentityFile='$CLUSTER_KEY' -o ControlMaster=auto -o ControlPersist=30m -o LogLevel=DEBUG -o User=ubuntu -o UpdateHostKeys=yes -o ControlMaster=no -o ControlPath=none -o ProxyCommand="ssh -i '$CLUSTER_KEY' -o ControlMaster=auto -o ControlPersist=30m -o UpdateHostKeys=yes -o LogLevel=DEBUG -W %h:%p -o User=ubuntu '$CLUSTER_JUMPHOST'"'
+export ANSIBLE_SSH_ARGS='-o IdentityFile='$CLUSTER_KEY' -o ControlMaster=auto -o ControlPersist=30m -o LogLevel=ERROR -o User=ubuntu -o UpdateHostKeys=yes -o ControlMaster=no -o ControlPath=none -o ProxyCommand="ssh -i '$CLUSTER_KEY' -o ControlMaster=auto -o ControlPersist=30m -o UpdateHostKeys=yes -o LogLevel=ERROR -W %h:%p -o User=ubuntu '$CLUSTER_JUMPHOST'"'
 export ANSIBLE_INVENTORY=$(pwd)'/openstack.py'
