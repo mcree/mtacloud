@@ -19,6 +19,7 @@ sudo apt-get -y install ansible python-shade python-os-client-config
 
 Fetch mtacloud ansible cluster helpers to your local machine (to /tmp/workdir):
 ~~~
+cd /tmp/workdir
 wget -q -O ansible.cfg https://raw.githubusercontent.com/mcree/mtacloud/master/hot/ansible-cluster/ansible.cfg
 wget -q -O openstack.py https://raw.githubusercontent.com/mcree/mtacloud/master/hot/ansible-cluster/openstack.py
 chmod +x openstack.py
