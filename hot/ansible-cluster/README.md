@@ -27,18 +27,19 @@ chmod +x openstack.py
 
 Fetch OpenRC v3 script from https://sztaki.cloud.mta.hu/project/access_and_security/api_access/openrc/ (eg.: to /tmp/workdir/YOURPROJECT-openrc.sh)
 
-Install basic python environment on your cluster (needed by ansilbe):
+Initialize environment (needed for commands below)
 ~~~
 cd /tmp/workdir
 source YOURPROJECT-openrc.sh
 source cluster-ansiblerc $(pwd)/cluster_key.private 1.2.3.4
+~~~
+
+Install basic python environment on your cluster (needed by ansilbe):
+~~~
 ansible all -m raw -a 'sudo apt -y install python'
 ~~~
 
 Try a simple ping:
 ~~~
-cd /tmp/workdir
-source YOURPROJECT-openrc.sh
-source cluster-ansiblerc $(pwd)/cluster_key.private 1.2.3.4
 ansible all -m ping
 ~~~
