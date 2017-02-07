@@ -43,3 +43,9 @@ Try a simple ping:
 ~~~
 ansible all -m ping
 ~~~
+
+Target cluster master or cluster nodes:
+~~~
+ansible cluster_master -m ping
+ansible cluster_node_* -m ping
+~~~
