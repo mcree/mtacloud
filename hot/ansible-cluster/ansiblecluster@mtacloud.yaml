@@ -1,0 +1,177 @@
+heat_template_version: 2015-04-30
+
+description: Deploys a simple ansible managed cluster with a public master node (jump host/bastion host) at MTA CLOUD @ SZTAKI
+
+parameters:
+  node_count:
+    type: number
+    label: Hosts
+    description: Number of hosts (excluding the master)
+    default: 2
+
+  public_ip:
+    type: string
+    label: Public IP
+    description: Public IP address to be assigned to master node (jump host/bastion host)
+
+  private_net_name:
+    type: string
+    label: Private Network Name
+    description: Name of private network from which private IP addresses will be allocated
+    constraints:
+      - custom_constraint: neutron.network 
+      
+  instance_flavor:
+    type: string
+    label: Flavor
+    default: m1.small
+    description: Flavor to use for the nodes
+    constraints:
+      - custom_constraint: nova.flavor
+
+  instance_image:
+    type: string
+    label: Image
+    default: Ubuntu 16.04 LTS Cloud image
+    description: Image to be used for all servers in this stack
+
+resources:
+  #bootstrap token
+  bootstrap_token:
+    type: OS::Heat::RandomString
+    properties:
+      length: 64
+
+  #bootstrap token
+  master_password:
+    type: OS::Heat::RandomString
+    properties:
+      length: 16
+
+  #SSH Key
+  ssh_key:
+    type: OS::Nova::KeyPair
+    properties:
+      name: { get_param: "OS::stack_id" }
+      save_private_key: true
+      
+  #Networking
+  master_floating_ip:
+    type : AWS::EC2::EIPAssociation
+    properties :
+        InstanceId: { get_resource: cluster_master }
+        EIP: { get_param: public_ip }
+      
+  master_port:
+    type: OS::Neutron::Port
+    properties:
+      network: { get_param: private_net_name }
+      security_groups: [{ get_resource: security_group }]
+  
+  security_group:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      description:
+      name: cluster-cluster-security-group
+      rules:
+        - remote_ip_prefix: 0.0.0.0/0
+          protocol: tcp
+          port_range_min: 1
+          port_range_max: 65535
+        - remote_ip_prefix: 0.0.0.0/0
+          protocol: icmp
+        - remote_mode: remote_group_id
+          protocol: tcp
+          port_range_min: 1
+          port_range_max: 65535
+        - remote_mode: remote_group_id
+          protocol: udp
+          port_range_min: 1
+          port_range_max: 65535
+
+  # Wait condition for token sharing
+  master_wait_condition:
+    type: OS::Heat::WaitCondition
+    properties:
+      handle: {get_resource: master_wait_handle}
+      count: 1
+      timeout: 600
+
+  master_wait_handle:
+    type: OS::Heat::WaitConditionHandle          
+          
+  #Master Server
+  cluster_master:
+    type: OS::Nova::Server
+    properties:
+      name: cluster_master
+      image: { get_param: instance_image }
+      flavor: { get_param: instance_flavor }
+      key_name: { get_resource: ssh_key }
+      networks:
+        - port: { get_resource: master_port }
+      security_groups:
+        - cluster-cluster-security-group
+      user_data_format: RAW
+      user_data: 
+        str_replace:
+          template: |
+            #!/bin/bash
+            echo "+ MASTER startup script starting"
+            
+            echo "+ Setting master password"
+            echo "ubuntu:$master_password" | sudo chpasswd
+            
+            echo "+ Setting up SSH to access cluster members"
+            echo -e "$private_key" > /home/ubuntu/.ssh/id_rsa
+            chown ubuntu.ubuntu /home/ubuntu/.ssh/id_rsa
+            chmod go-rwx /home/ubuntu/.ssh/id_rsa
+
+            echo "+ sending wc_notify on master init done"
+            wc_notify --data-binary "{\"status\": \"SUCCESS\", \"id\": \"worker_token\", \"reason\": \"master init done\"}"
+ 
+            echo "+ MASTER startup script done"
+          params:
+            wc_notify: { get_attr: ['master_wait_handle', 'curl_cli'] }
+            $master_password: {get_attr: [master_password, value]}
+            $private_key: { get_attr: [ssh_key, private_key] }
+        
+  #Other cluster members
+  cluster_nodes:
+    type: OS::Heat::ResourceGroup
+    depends_on: 
+        - cluster_master
+        - master_wait_condition
+    properties:
+      count: { get_param: node_count }
+      resource_def:
+        type: OS::Nova::Server
+        properties:
+            name: cluster_node_%index%
+            image: { get_param: instance_image }
+            flavor: { get_param: instance_flavor }
+            key_name: { get_resource: ssh_key }
+            networks:
+                - network: { get_param: private_net_name }
+            user_data_format: RAW
+            user_data:
+              str_replace:
+                template: |
+                  #!/bin/bash
+                  echo "+ NODE startup script starting"
+
+                  echo "+ Setting master password"
+                  echo "ubuntu:$master_password" | sudo chpasswd
+
+                  echo "+ NODE startup script done"
+                params:
+                  $master_password: {get_attr: [master_password, value]}
+
+outputs:
+  private_key:
+    description: SSH Private Key
+    value: { get_attr: [ssh_key, private_key] }
+
+  master_password:
+    description: Password for user 'ubuntu'
+    value: {get_attr: [master_password, value]}
